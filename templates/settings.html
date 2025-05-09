@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+
+<!--settings.html-->
+
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Audio Metadata Settings</title>
+    <!-- Bootstrap CSS -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/bootstrap.min.css') }}">
+	<!--<link rel="icon" type="image/x-icon" href="{{ url_for('static', filename='favicons/settings.ico') }}">-->
+    <style>
+        .form-group {
+            margin-bottom: 20px;
+        }
+        .nav-buttons {
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+            margin-top: 20px;
+            padding-bottom: 20px;
+        }
+        .page-title {
+            text-align: center;
+            color: #007bff;
+            font-weight: bold;
+        }
+        .btn {
+            font-size: 1rem;
+        }
+        .form-container {
+            max-width: 600px;
+            margin: 0 auto;
+        }
+		.blinking {
+			animation: blinker 1s linear infinite;
+		}
+
+		@keyframes blinker {
+			50% { opacity: 0; }
+		}
+    </style>
+	
+<script>
+		function updateRecordingStatus2() {
+			fetch('/is_recording2')
+				.then(response => response.json())
+				.then(data => {
+					const statusElement = document.getElementById('recording-status');
+					if (data.recording) {
+						statusElement.textContent = "Recording in progress";
+						statusElement.style.color = "red";
+						statusElement.style.fontWeight = "bold";
+						statusElement.classList.add("blinking"); // Add blinking effect
+					} else {
+						statusElement.textContent = "No active recording";
+						statusElement.style.color = "green";
+						statusElement.style.fontWeight = "bold";
+						statusElement.classList.remove("blinking"); // Remove blinking effect
+					}
+				})
+				.catch(error => console.error('Error checking recording status:', error));
+		}
+
+		setInterval(updateRecordingStatus2, 2000); // Update every 3 seconds
+		updateRecordingStatus2();
+        
+</script>
+</head>
+
+<body class="bg-light">
+        <div class="container text-center my-5">
+        <h1 class="page-title">Audio Metadata Settings</h1>
+		<div class="nav-buttons">
+		<a href="{{ url_for('index') }}" class="btn btn-outline-primary btn-icon">
+        <img src="{{ url_for('static', filename='icons/home.png') }}" alt="Home Icon" class="icon" style="width: 30px; height: 30px;"> Home Page
+        </a>
+		</div>
+		<div class="stat">
+		<strong>Recording Status:</strong> <span id="recording-status">Checking...</span>
+        </div>
+        <div class="form-container">
+            <form action="/save_metadata" method="post">
+                <div class="form-group">
+                    <label for="title">Title:</label>
+                    <input type="text" id="title" name="title" class="form-control" value="{{ metadata.title }}">
+                </div>
+                <div class="form-group">
+                    <label for="artist">Artist:</label>
+                    <input type="text" id="artist" name="artist" class="form-control" value="{{ metadata.artist }}">
+                </div>
+                <div class="form-group">
+                    <label for="album">Album:</label>
+                    <input type="text" id="album" name="album" class="form-control" value="{{ metadata.album }}">
+                </div>
+                <div class="form-group">
+                    <label for="genre">Genre:</label>
+                    <input type="text" id="genre" name="genre" class="form-control" value="{{ metadata.genre }}">
+                </div>
+                <div class="form-group">
+                    <label for="year">Year:</label>
+                    <input type="text" id="year" name="year" class="form-control" value="{{ metadata.year }}">
+                </div>
+                <div class="form-group">
+                    <label for="comments">Comments:</label>
+                    <input type="text" id="comments" name="comments" class="form-control" value="{{ metadata.comments }}">
+                </div>
+                <div class="nav-buttons">
+                    <a href="{{ url_for('index') }}" class="btn btn-outline-primary btn-icon">
+                        <img src="{{ url_for('static', filename='icons/home.png') }}" alt="Home Icon" class="icon" style="width: 30px; height: 30px;"> Home Page
+                    </a>
+					<button type="submit" class="btn btn-outline-primary btn-icon">
+                        <img src="{{ url_for('static', filename='icons/save.png') }}" alt="Save Icon" class="icon" style="width: 30px; height: 30px;"> Save Metadata
+                    </button>
+
+                </div>
+            </form>
+        </div>
+    </div>
+    <!-- Bootstrap JS and dependencies -->
+    <script src="/static/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

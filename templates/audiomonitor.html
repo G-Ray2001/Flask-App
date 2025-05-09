@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Audio Monitor</title>
+    <!-- Bootstrap CSS -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/bootstrap.min.css') }}">
+	<style>
+        body {
+            background-color: #f8f9fa; /* Light gray background */
+        }
+
+        .page-title {
+            text-align: center;
+            color: #007bff; /* Primary blue */
+            font-weight: bold;
+            margin-top: 30px;
+            margin-bottom: 20px;
+        }
+
+        .iframe-container {
+			width: 100%;
+			height: 100vh; /* Set to 100% of the viewport height */
+		}
+
+		iframe {
+			width: 100%;
+			height: 100%;
+			border: none;
+		}
+		.vu-meter-container {
+			display: flex;
+			justify-content: center;
+			gap: 20px; /* Space between the meters */
+			margin-bottom: 30px; /* Optional margin to separate from other content */
+		}
+
+		.gauge-container {
+			display: flex;
+			flex-direction: column;
+			align-items: center;
+		}
+		/* Responsive adjustments for smaller screens */
+		@media (max-width: 768px) {
+			.gauge-container canvas {
+				width: 120px; /* Smaller width for gauges on smartphones */
+				height: 120px; /* Smaller height for gauges on smartphones */
+			}
+
+			.level-label {
+				font-size: 0.9rem; /* Slightly reduce label size for smaller screens */
+			}
+		}
+
+        canvas {
+            width: 200px;
+            height: 200px;
+            margin-bottom: 10px;
+        }
+
+        .level-label {
+            font-size: 1.2rem;
+            font-weight: bold;
+        }
+
+        .nav-buttons {
+            margin: 20px 0;
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+        }
+
+        .stat {
+            font-size: 1.2rem;
+            margin: 20px 0;
+            text-align: center;
+        }
+		.blinking {
+			animation: blinker 1s linear infinite;
+		}
+
+		@keyframes blinker {
+			50% { opacity: 0; }
+		}
+		.rms-number {
+			font-weight: bold !important;
+		}
+		.peak-number {
+			font-weight: bold !important;
+		}
+		.bold-number {
+			font-weight: bold;
+		}
+    </style>
+	<script src="{{ url_for('static', filename='js/gauge.min.js') }}"></script>
+
+</head>
+<body>
+    <div class="container">
+        <h1 class="page-title">Audio Monitor</h1>
+	    <div class="nav-buttons">
+            <a href="{{ url_for('index') }}" class="btn btn-outline-primary btn-icon">
+                <img src="{{ url_for('static', filename='icons/home.png') }}" alt="Home Icon"> Home Page
+            </a>
+        </div>
+        <!-- Status -->
+        <div class="stat">
+            <div class="stat">
+		<strong>Recording Status:</strong> <span id="recording-status">Checking...</span>
+        </div>
+
+        <!-- Gauges -->
+		<div class="vu-meter-container">
+			<div class="gauge-container">
+            <h3 class="level-label">RMS</h3>
+            <canvas id="rmsGauge"></canvas>
+            <p id="rmsValue"><strong>RMS: -- dB</strong></p>
+        </div>
+        <div class="gauge-container">
+            <h3 class="level-label">Peak</h3>
+            <canvas id="peakGauge"></canvas>
+            <p id="peakValue"><strong>Peak: -- dB</strong></p>
+        </div>
+    </div>
+	<!-- Device Selection Form -->
+	<div class="mt-5">
+    <h3>Select Audio Input Device</h3>
+    <form id="deviceForm">
+        <div class="form-group">
+            <label for="device">Available Devices:</label>
+            <select name="card" id="device" class="form-control">
+                {% for device in devices %}
+                    <option value="{{ device.card }}">Card {{ device.card }}: {{ device.device_name }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <button type="submit" class="btn btn-primary mt-3">Select Device</button>
+    </form>
+    <p id="message" class="text-success mt-3"></p>
+	</div>
+
+	</div>
+	<div class="iframe-container">
+        <!-- Embed Alsamixer WebUI -->
+        <iframe src="http://audio-rec1.local:8080"></iframe>
+    </div>
+	<div class="nav-buttons">
+        <a href="{{ url_for('index') }}" class="btn btn-outline-primary btn-icon">
+			<img src="{{ url_for('static', filename='icons/home.png') }}" alt="Home Icon"> Home Page
+        </a>
+    </div>
+
+    <script>
+	let rmsGauge, peakGauge;
+
+	window.onload = () => {
+		const rmsOpts = {
+			angle: 0.3,
+			lineWidth: 0.2,
+			radiusScale: 1,
+			pointer: {
+				length: 0.6,
+				strokeWidth: 0.035,
+				color: "#000000"
+			},
+        staticZones: [
+            {strokeStyle: "#30B32D", min: -100, max: -40}, // Green zone
+            {strokeStyle: "#FFDD00", min: -40, max: -10},  // Yellow zone
+            {strokeStyle: "#F03E3E", min: -10, max: 0}     // Red zone
+        ],
+        limitMax: false,
+        limitMin: false,
+        highDpiSupport: true
+    };
+
+		const peakOpts = { ...rmsOpts }; // Same options for peak gauge
+
+		const rmsTarget = document.getElementById("rmsGauge");
+		rmsGauge = new Gauge(rmsTarget).setOptions(rmsOpts);
+		rmsGauge.maxValue = 0; 
+		rmsGauge.setMinValue(-100); 
+		rmsGauge.animationSpeed = 32;
+
+		const peakTarget = document.getElementById("peakGauge");
+		peakGauge = new Gauge(peakTarget).setOptions(peakOpts);
+		peakGauge.maxValue = 0;
+		peakGauge.setMinValue(-100);
+		peakGauge.animationSpeed = 32;
+
+		updateRMS();  // Start RMS updates
+		updatePeak(); // Start Peak updates
+	};
+	
+	let rmsCurrentValue = -100; // Initialize RMS gauge value
+	let peakCurrentValue = -100; // Initialize Peak gauge value
+
+	function smoothTransition(currentValue, targetValue, dampingFactor) {
+		return currentValue + (targetValue - currentValue) * dampingFactor;
+	}
+	
+	async function updateRMS() {
+		try {
+			const response = await fetch("/levels");
+			const data = await response.json();
+
+			// Convert normalized RMS to dB
+			const rmsInDb = (data.rms * 60) - 60;
+
+			// Smooth transition for RMS
+			rmsCurrentValue = smoothTransition(rmsCurrentValue, rmsInDb, 0.3); // Damping factor
+			rmsGauge.set(rmsCurrentValue);
+			document.getElementById("rmsValue").innerHTML = `<strong>RMS: ${rmsCurrentValue.toFixed(2)} dB</strong>`;
+		} catch (error) {
+			console.error("Error fetching RMS level:", error);
+		} finally {
+			setTimeout(updateRMS, 100); // Update RMS every 100 ms
+		}
+	}
+
+
+	async function updatePeak() {
+		try {
+			const response = await fetch("/levels");
+			const data = await response.json();
+
+			// Convert normalized Peak to dB
+			const peakInDb = (data.peak * 60) - 60;
+
+			// Smooth transition for Peak
+			peakCurrentValue = smoothTransition(peakCurrentValue, peakInDb, 0.3); // Damping factor
+			peakGauge.set(peakCurrentValue);
+			document.getElementById("peakValue").innerHTML = `<strong>Peak: ${peakCurrentValue.toFixed(2)} dB</strong>`;
+		} catch (error) {
+			console.error("Error fetching Peak level:", error);
+		} finally {
+			setTimeout(updatePeak, 1000); // Update Peak every 1000 ms
+		}
+	}
+
+
+	
+	function updateRecordingStatus2() {
+			fetch('/is_recording2')
+				.then(response => response.json())
+				.then(data => {
+					const statusElement = document.getElementById('recording-status');
+					if (data.recording) {
+						statusElement.textContent = "Recording in progress";
+						statusElement.style.color = "red";
+						statusElement.style.fontWeight = "bold";
+						statusElement.classList.add("blinking"); // Add blinking effect
+					} else {
+						statusElement.textContent = "No active recording";
+						statusElement.style.color = "green";
+						statusElement.style.fontWeight = "bold";
+						statusElement.classList.remove("blinking"); // Remove blinking effect
+					}
+				})
+				.catch(error => console.error('Error checking recording status:', error));
+		}
+		
+		document.getElementById('deviceForm').addEventListener('submit', function(event) {
+			event.preventDefault(); // Prevent normal form submission
+
+			const formData = new FormData(this); // Collect form data
+			fetch('/audiomonitor', {
+				method: 'POST',
+				body: formData,
+			})
+			.then(response => {
+				if (response.ok) {
+					document.getElementById('message').textContent = "Device selected successfully!";
+            
+					// ✅ Send request to restart pipeline after device selection
+					fetch('/restart_pipeline', { method: 'POST' })
+					.then(res => res.ok ? console.log("Pipeline restarted!") : console.error("Restart failed"))
+					.catch(error => console.error("Error restarting pipeline:", error));
+				} else {
+					document.getElementById('message').textContent = "Failed to select device.";
+				}
+			})
+			.catch(error => {
+				document.getElementById('message').textContent = "An error occurred. Please try again.";
+				console.error('Error:', error);
+			});
+		});
+
+		setInterval(updateRecordingStatus2, 3000); // Update every 3 seconds
+		updateRecordingStatus2();
+				
+	</script>
+
+</script>
+	<script src="{{ url_for('static', filename='js/bootstrap.bundle.min.js') }}"></script>
+</body>
+</html>

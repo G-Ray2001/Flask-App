@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<!--audio_levels.html-->
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Audio Levels</title>
+    <!-- Include Bootstrap CSS locally -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/bootstrap.min.css') }}">
+    <style>
+        /* Custom styling for level-fill within Bootstrap progress bar */
+        .level-fill {
+            background-color: #28a745;
+            transition: width 0.5s ease;
+        }
+        .icon {
+            width: 30px;
+            height: 30px;
+            margin-right: 8px;
+		}
+				
+		.page-title {
+			text-align: center;
+			color: #007bff; /* Bootstrap primary blue color */
+			font-weight: bold;
+		}
+		.nav-buttons {
+			display: flex;
+			justify-content: center; /* Centers the buttons */
+			gap: 15px; /* Adds spacing between buttons */
+			margin-top: 20px; /* Adds space above buttons */
+			padding-bottom: 20px; /* Adds space at the bottom of the page */
+		}
+		
+		/* Custom button styles */
+		.nav-button {
+			display: inline-flex;
+			align-items: center;
+			padding: 10px 20px;
+			font-size: 1rem;
+			color: #fff;
+			background-color: #007bff;
+			border: none;
+			border-radius: 5px;
+			text-decoration: none;
+			transition: background-color 0.3s ease;
+		}			
+		.blinking {
+			animation: blinker 1s linear infinite;
+		}
+
+		@keyframes blinker {
+			50% { opacity: 0; }
+		}
+    </style>
+</head>
+<body class="bg-light">
+    <div class="container text-center my-5">
+        <h1 class="page-title">Audio Levels</h1>
+        <div class="nav-buttons">
+            <a href="{{ url_for('index') }}" class="btn btn-outline-primary btn-icon">
+                <img src="{{ url_for('static', filename='icons/home.png') }}" alt="Home Icon"> Home Page
+            </a>
+        </div>
+		<div class="stat">
+		<strong>Recording Status:</strong> <span id="recording-status">Checking...</span>
+        </div>
+        <!-- Monitoring Buttons -->
+        <div class="mb-4">
+            <button class="btn btn-outline-primary btn-icon" onclick="startMonitoring()">
+                <img src="{{ url_for('static', filename='icons/stop.png') }}" alt="Stop Icon" class="me-2" style="width: 30px; height: 30px;">
+                Stop Monitoring
+            </button>
+            <button class="btn btn-outline-primary btn-icon" onclick="stopMonitoring()">
+                <img src="{{ url_for('static', filename='icons/start.png') }}" alt="Start Icon" class="me-2" style="width: 30px; height: 30px;">
+                Start Monitoring
+            </button>
+        </div>
+
+        <!-- Audio Level Display -->
+        <p class="fs-4">Current Audio Level: <span id="audio-level" class="fw-bold">-90 dB</span></p>
+
+        <!-- Audio Level Bar (Bootstrap Progress) -->
+        <div class="progress mx-auto my-3" style="width: 80%; height: 30px;">
+            <div class="progress-bar level-fill" id="level-fill" role="progressbar" style="width: 0%;" aria-valuemin="0" aria-valuemax="100"></div>
+        </div>
+
+        <!-- Back to Home Button -->
+        <div class="nav-buttons">
+            <a href="{{ url_for('index') }}" class="btn btn-outline-primary btn-icon">
+                <img src="{{ url_for('static', filename='icons/home.png') }}" alt="Home Icon"> Home Page
+            </a>
+        </div>
+    </div>
+	
+    <script>
+        function startMonitoring() {
+            fetch('/start_monitoring')
+                .then(response => response.json())
+                .then(data => console.log(data.status))
+                .catch(error => console.error('Error starting monitoring:', error));
+        }
+
+        function stopMonitoring() {
+            fetch('/stop_monitoring')
+                .then(response => response.json())
+                .then(data => console.log(data.status))
+                .catch(error => console.error('Error stopping monitoring:', error));
+        }
+
+        function updateAudioLevel() {
+			fetch('/get_audio_level')
+				.then(response => response.json())
+				.then(data => {
+					const audioLevel = data.volume;
+
+					// Scale the audio level (adjust these values based on your actual range)
+					// Assuming dB values range from -40 to 0
+					const minDb = -40; // Minimum expected dB
+					const maxDb = 0;   // Maximum expected dB
+					let fillWidth = Math.min(Math.max((audioLevel - minDb) / (maxDb - minDb) * 100, 0), 100); // Map to 0-100%
+
+					// Update the display
+					document.getElementById('audio-level').textContent = audioLevel + " dB";
+
+					// Update progress bar width
+					document.getElementById('level-fill').style.width = fillWidth + "%";
+				})
+				.catch(error => console.error('Error getting audio level:', error));
+		}
+		function updateRecordingStatus() {
+			fetch('/is_recording')
+				.then(response => response.json())
+				.then(data => {
+					const statusElement = document.getElementById('recording-status');
+					if (data.recording) {
+						statusElement.textContent = "Recording in progress";
+						statusElement.style.color = "red";
+						statusElement.style.fontWeight = "bold";
+						statusElement.classList.add("blinking"); // Add blinking effect
+					} else {
+						statusElement.textContent = "No active recording";
+						statusElement.style.color = "green";
+						statusElement.style.fontWeight = "bold";
+						statusElement.classList.remove("blinking"); // Remove blinking effect
+					}
+				})
+				.catch(error => console.error('Error checking recording status:', error));
+		}
+
+		setInterval(updateRecordingStatus, 3000); // Update every 3 seconds
+		updateRecordingStatus();
+
+        // Update audio level every second
+        setInterval(updateAudioLevel, 1000);
+    </script>
+	    <!-- Bootstrap JS and dependencies -->
+    <script src="/static/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

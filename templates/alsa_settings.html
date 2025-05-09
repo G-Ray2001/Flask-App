@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ALSA Mixer Settings</title>
+</head>
+<body>
+    <h1>Adjust ALSA Mixer Settings</h1>
+    <form method="POST">
+        <table>
+            <tr>
+                <th>Control Name</th>
+                <th>Current Status</th>
+                <th>Adjust Settings</th>
+                <th>Action</th>
+            </tr>
+            {% for setting in mixer_settings %}
+            <tr>
+                <td>{{ setting.name }}</td>
+                <td>
+                    {% if setting.value %}
+                        {{ setting.value }}
+                    {% else %}
+                        <em>Not available</em>
+                    {% endif %}
+                </td>
+                <td>
+                    {% if setting.name == "Line" %}
+                        <select name="value">
+                            <option value="cap" {% if "Capture [on]" in setting.value %}selected{% endif %}>Enable Capture</option>
+                            <option value="nocap" {% if "Capture [off]" in setting.value %}selected{% endif %}>Disable Capture</option>
+                        </select>
+                    {% elif setting.name == "Mic" %}
+                        <select name="value">
+                            <option value="nocap" {% if "nocap" in setting.value %}selected{% endif %}>Disable Mic</option>
+                            <option value="cap" {% if "cap" in setting.value %}selected{% endif %}>Enable Mic</option>
+                        </select>
+                    {% elif setting.name == "Master" %}
+                        <input type="text" name="value" placeholder="Enter dB level (e.g., 0.0dB)" value="{{ setting.value }}">
+                    {% else %}
+                        <input type="text" name="value" placeholder="Enter new value">
+                    {% endif %}
+                </td>
+                <td>
+                    <input type="hidden" name="numid" value="{{ setting.numid }}">
+                    <button type="submit" name="apply" value="{{ setting.name }}">Apply</button>
+                </td>
+            </tr>
+            {% endfor %}
+        </table>
+    </form>
+</body>
+</html>
