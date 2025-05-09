@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ALSAMixer Settings</title>
+</head>
+<body>
+    <h1>ALSAMixer Settings for Card {{ card }}</h1>
+    <pre>{{ mixer_settings }}</pre>
+
+    <h2>Change ALSAMixer Settings</h2>
+    <form action="/set_mixer_setting" method="post">
+        <label for="control">Control:</label>
+        <input type="text" id="control" name="control" placeholder="e.g., Line or Master" required>
+        <br>
+        <label for="value">Value:</label>
+        <input type="text" id="value" name="value" placeholder="e.g., cap or nocap" required>
+        <br>
+        <input type="hidden" name="card" value="{{ card }}">
+        <button type="submit">Apply Setting</button>
+    </form>
+</body>
+</html>

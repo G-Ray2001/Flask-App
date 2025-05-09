@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Select Audio Device</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/bootstrap.min.css') }}">
+</head>
+<body class="bg-light">
+    <div class="container mt-5">
+        <h1 class="text-primary text-center">Select Audio Device</h1>
+        <form method="POST">
+            <div class="form-group">
+                <label for="device">Available Devices:</label>
+                <select name="card" id="device" class="form-control">
+                    {% for device in devices %}
+                        <option value="{{ device.card }}">Card {{ device.card }}: {{ device.card_name }} - {{ device.device_name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <button type="submit" class="btn btn-primary mt-3">Select Device</button>
+        </form>
+    </div>
+</body>
+</html>

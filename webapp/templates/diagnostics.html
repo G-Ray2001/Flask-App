@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<!--diagnostics.html-->
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Diagnostics</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/bootstrap.min.css') }}">
+	<!--<link rel="icon" type="image/x-icon" href="{{ url_for('static', filename='favicons/sysinfo.ico') }}">-->
+    <style>
+        .stat {
+            background-color: #f9f9f9;
+            padding: 10px;
+            margin-bottom: 10px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+        }
+        .icon {
+            width: 30px;
+            height: 30px;
+            margin-right: 8px;
+        }
+        .page-title {
+            text-align: center;
+            color: #007bff;
+            font-weight: bold;
+        }
+        .nav-buttons {
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+            margin-top: 20px;
+            padding-bottom: 20px;
+        }
+        .nav-button {
+            display: inline-flex;
+            align-items: center;
+            padding: 10px 20px;
+            font-size: 1rem;
+            color: #fff;
+            background-color: #007bff;
+            border: none;
+            border-radius: 5px;
+            text-decoration: none;
+            transition: background-color 0.3s ease;
+        }
+		 .blinking {
+			animation: blinker 1s linear infinite;
+		}
+
+		@keyframes blinker {
+			50% { opacity: 0; }
+		}
+    </style>
+    <script>
+	
+		function updateRecordingStatus2() {
+			fetch('/is_recording2')
+				.then(response => response.json())
+				.then(data => {
+					const statusElement = document.getElementById('recording-status');
+					if (data.recording) {
+						statusElement.textContent = "Recording in progress";
+						statusElement.style.color = "red";
+						statusElement.style.fontWeight = "bold";
+						statusElement.classList.add("blinking"); // Add blinking effect
+					} else {
+						statusElement.textContent = "No active recording";
+						statusElement.style.color = "green";
+						statusElement.style.fontWeight = "bold";
+						statusElement.classList.remove("blinking"); // Remove blinking effect
+					}
+				})
+				.catch(error => console.error('Error checking recording status:', error));
+		}
+
+		setInterval(updateRecordingStatus2, 3000); // Update every 3 seconds
+		updateRecordingStatus2();
+        
+		function checkRecordingAndProceed(action) {
+			fetch('/is_recording')
+				.then(response => response.json())
+				.then(data => {
+					if (data.recording) {
+						alert("⚠ WARNING: Recording is in progress! Stop the recording before proceeding.");
+					} else {
+						if (action === "power_off") {
+							if (confirm("Are you sure you want to power off the Raspberry Pi? 'OK' to proceed. Cycle power on box to restart.")) {
+								fetch("/power_off", { method: "POST" });
+                        }
+						} else if (action === "reboot_pi") {
+							if (confirm("Are you REALLY sure you want to restart the Raspberry Pi? 'OK' to proceed.")) {
+								fetch("/reboot_system", { method: "POST" });
+							}
+						} else if (action === "restart_app") {
+							if (confirm("This will restart the recording app page. 'OK' to proceed.")) {
+								fetch("/restart_app", { method: "POST" });
+							}
+						}
+					}
+				})
+				.catch(error => console.error('Error checking recording status:', error));
+				
+		}
+	
+		function confirmPowerOff() {
+			checkRecordingAndProceed("power_off");
+        }
+
+		function restartApp() {
+			checkRecordingAndProceed("restart_app");
+		}
+		
+		function restartPi() {
+			checkRecordingAndProceed("reboot_pi");
+		}
+		
+        function updateCurrentDateTime() {
+            fetch('/current_time')
+                .then(response => response.json())
+                .then(data => {
+                    document.getElementById('current-date-time').textContent = data.current_time;
+                })
+                .catch(error => console.error('Error fetching current time:', error));
+        }
+
+        function toggleDateTimeForm() {
+            const formDiv = document.getElementById('datetime-form');
+            formDiv.style.display = formDiv.style.display === 'none' ? 'block' : 'none';
+        }
+
+        setInterval(updateCurrentDateTime, 1000);
+        updateCurrentDateTime();
+    </script>
+</head>
+<body class="bg-light">
+    <div class="container my-5">
+        <h1 class="page-title">System Diagnostics</h1>
+        <div class="nav-buttons">
+            <a href="{{ url_for('index') }}" class="btn btn-outline-primary btn-icon">
+                <img src="{{ url_for('static', filename='icons/home.png') }}" alt="Home Icon" style="width: 20px; height: 20px;"> Home Page
+            </a>
+        </div>
+		<div class="stat">
+		<strong>Recording Status:</strong> <span id="recording-status">Checking...</span>
+        </div>
+
+        <div class="stat">
+            <strong>Uptime:</strong>
+            <div>{{ uptime }}</div>
+        </div>
+
+        <div class="stat">
+            <strong>Temperature:</strong> {{ temp }}
+        </div>
+
+        <div class="stat">
+            <strong>CPU Usage:</strong> {{ cpu_percent }}%
+        </div>
+
+        <div class="stat">
+            <strong>Memory Info:</strong>
+            <pre>Total: {{ memory_data.Total }}, Used: {{ memory_data.Used }}, Free: {{ memory_data.Free }}</pre>
+        </div>
+
+        <div class="stat">
+            <strong>Disk Usage:</strong>
+            <pre>{{ disk_usage }}</pre>
+		</div>
+
+        <!-- Date and Time Form -->
+        <div class="stat">
+            <center><p id="current-date-time" class="text-secondary mb-4"></p></center>
+            <button class="btn btn-outline-primary btn-icon" onclick="toggleDateTimeForm()">
+                <img src="{{ url_for('static', filename='icons/calendar.png') }}" alt="Calendar Icon" class="icon" style="width: 20px; height: 20px;"> Set Date and Time
+            </button>
+            <div id="datetime-form" style="display: none; margin-top: 15px;">
+                <form action="{{ url_for('set_datetime') }}" method="POST">
+                    <div class="mb-3">
+                        <label for="date" class="form-label">Date (YYYY-MM-DD):</label>
+                        <input type="date" id="date" name="date" class="form-control" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="time" class="form-label">Time (HH:MM):</label>
+                        <input type="time" id="time" name="time" class="form-control" required>
+                    </div>
+                    <button type="submit" class="btn btn-outline-primary btn-icon">
+					<img src="{{ url_for('static', filename='icons/checkmark.png') }}" alt="OK Icon" class="icon" style="width: 20px; height: 20px;">Submit</button>
+                </form>
+            </div>
+        </div>
+
+        <!-- Action Buttons -->
+        <div class="nav-buttons">
+            <a href="{{ url_for('index') }}" class="btn btn-outline-primary btn-icon">
+                <img src="{{ url_for('static', filename='icons/home.png') }}" alt="Home Icon" style="width: 20px; height: 20px;"> Home Page
+            </a>
+            <button class="btn btn-outline-danger btn-icon" onclick="confirmPowerOff()">
+                <img src="{{ url_for('static', filename='icons/power-off.png') }}" alt="Power Off Icon" class="icon" style="width: 20px; height: 20px;"> Power Off
+            </button>
+            <button class="btn btn-outline-primary btn-icon" onclick="restartApp()">
+                <img src="{{ url_for('static', filename='icons/restart.png') }}" alt="Restart Icon" class="icon" style="width: 20px; height: 20px;"> Restart App
+            </button>
+			<button class="btn btn-outline-danger btn-icon" onclick="restartPi()">
+                <img src="{{ url_for('static', filename='icons/reboot.png') }}" alt="Reboot Icon" class="icon" style="width: 20px; height: 20px;"> Restart R-Pi
+            </button>
+        </div>
+    </div>
+
+    <script src="/static/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

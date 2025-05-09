@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+
+<!--index.html-->
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Audio Recorder</title>
+    <!-- Include Bootstrap CSS locally -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/bootstrap.min.css') }}">
+    <style>
+	
+    <!--/* Custom button colors */
+    #start-btn { background-color: #32CD32; color: #fff; } /* Start Recording - Bright Green */
+    .btn-danger { background-color: #FF4500; color: #fff; } /* Stop Recording - Bold Orange */
+	#manage-recordings-btn { background-color: #6A5ACD; color: white; } /* Slate Blue */
+    #check-audio-btn { background-color: #20B2AA; color: white; } /* Refreshing Teal */
+	#add-metadata-btn { background-color: #DAA520; color: white; } /* Soft Gold */
+	#mixer-settings-btn { background-color: #9370DB; color: white; } /* Deep Purple */
+	#view-sysinfo-btn { background-color: #20B2AA; color: black; } /* Cool Teal */
+	-->
+        button:disabled {
+            background-color: #ccc;
+            color: #666;
+            cursor: not-allowed;
+        }	
+		
+		/* Custom styling for additional polish */
+        .icon {
+            width: 30px;
+            height: 30px;
+            margin-right: 8px;
+        }
+
+        .btn-custom {
+            width: 100%;
+            max-width: 300px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .recording-duration {
+            font-weight: bold;
+            color: #333;
+        }
+
+        ul {
+            padding-left: 0;
+            list-style: none;
+        }
+
+        ul li {
+            margin: 5px 0;
+        }
+
+        ul li a {
+            color: #007bff;
+            text-decoration: none;
+        }
+
+        ul li a:hover {
+            text-decoration: underline;
+        }
+		
+		.page-title {
+			text-align: center;
+			color: #007bff; /* Bootstrap primary blue color */
+			font-weight: bold;
+		}
+		.recording-status {
+			font-size: 20px; /* Adjust size as needed */
+		}
+
+		.flashing {
+			color: red;
+			font-weight: bold;
+			animation: flash 1s infinite;
+		}
+
+		@keyframes flash {
+			0% { opacity: 1; }
+			50% { opacity: 0; }
+			100% { opacity: 1; }
+		}
+	</style>
+
+<script>
+	function checkRecordingAndProceedToAudiomonitor() {
+		fetch('/is_recording')
+			.then(response => response.json())
+			.then(data => {
+				if (data.recording) {
+					alert("⚠ WARNING: Recording is in progress! Accessing the Audio Monitor is forbidden.");
+				} else {
+					// Redirect to audiomonitor page if no recording is in progress
+					window.location.href = "/audiomonitor";
+				}
+			})
+			.catch(error => console.error('Error checking recording status:', error));
+	}
+
+
+    function updateCurrentDateTime() {
+        fetch('/current_time')
+            .then(response => response.json())
+            .then(data => {
+                document.getElementById('current-date-time').textContent = data.current_time;
+            })
+            .catch(error => console.error('Error fetching current time:', error));
+    }
+
+    function updateRecordingDuration() {
+		fetch('/update_duration')
+			.then(response => response.json())
+			.then(data => {
+				const durationElement = document.getElementById('recording-duration');
+				durationElement.textContent = `${String(data.hours).padStart(2, '0')}:${String(data.minutes).padStart(2, '0')}:${String(data.seconds).padStart(2, '0')}`;
+			})
+			.catch(error => console.error('Error updating duration:', error));
+	}
+
+
+    // Update the date and time every second
+    setInterval(updateCurrentDateTime, 1000);
+    updateCurrentDateTime(); // Initial call to set the time immediately
+
+    // Update duration every 15 seconds if recording is in progress
+    {% if recording_in_progress %}
+        setInterval(updateRecordingDuration, 5000); // 5000 ms = 5 seconds
+    {% endif %}
+
+    function confirmStopRecord() {
+		const stopButton = document.querySelector(".btn-danger");
+		if (confirm("Are you sure you want to stop recording?")) {
+			stopButton.disabled = true; // Disable the button to prevent double clicks
+			fetch("/stop_recording", { method: "POST" })
+				.then(response => {
+					if (response.ok) {
+						// Dynamically change the button to "Start Recording"
+						const buttonContainer = document.querySelector(".d-flex");
+						buttonContainer.innerHTML = `
+							<a id="start-btn" href="/start_recording" class="btn btn-success btn-custom mb-3" onclick="disableStartButton()">
+								<img src="../static/icons/record.png" alt="Start Icon" class="icon"> Start Recording
+							</a>`;
+					} else {
+						alert("Failed to stop recording.");
+						stopButton.disabled = false; // Re-enable the button if there's an error
+					}
+				})
+				.catch(error => {
+					console.error("Error stopping recording:", error);
+					stopButton.disabled = false; // Re-enable the button in case of error
+				});
+		}
+	}
+
+
+    function handleStartRecording(event) {
+		event.preventDefault(); // Prevent default link behavior
+		const startButton = event.target.closest("a");
+		startButton.disabled = true; // Disable the button to prevent double clicks
+
+		fetch(startButton.href, { method: "GET" }) // Simulate a click
+			.then(response => {
+				if (response.ok) {
+					// No need to refresh the page—just trigger the recording button update
+					setTimeout(updateRecordingButton, 500); // Small delay to ensure status update
+				} else {
+					alert("Failed to start recording.");
+					startButton.disabled = false; // Re-enable the button if there's an error
+				}
+			})
+			.catch(error => {
+				console.error("Error starting recording:", error);
+				startButton.disabled = false; // Re-enable the button in case of error
+			});
+	}
+
+
+    // Attach the start recording handler to the start button
+    document.addEventListener("DOMContentLoaded", () => {
+        const startButton = document.querySelector(".btn-success");
+        if (startButton) {
+            startButton.addEventListener("click", handleStartRecording);
+        }
+    });
+	    	
+    function updateRecordingStatus() {
+    fetch('/is_recording')
+        .then(response => response.json())
+        .then(data => {
+            const statusElement = document.getElementById('recording-status');
+            if (data.recording) {
+                statusElement.innerHTML = '<p class="flashing">⚠ Recording in Progress ⚠</p>';
+            } else {
+                statusElement.textContent = '';
+            }
+        })
+        .catch(error => console.error("Error checking recording status:", error));
+    }
+	
+	function updateRecordingButton() {
+		fetch('/is_recording')
+			.then(response => response.json())
+			.then(data => {
+				const recordingButton = document.getElementById('recording-button');
+				const statusElement = document.getElementById('recording-status');
+
+				if (!recordingButton) return; // Prevent errors if button container is missing
+
+				const currentHTML = recordingButton.innerHTML;
+
+				if (data.recording) {
+					if (!currentHTML.includes('Stop Recording')) {
+						recordingButton.innerHTML = `
+							<button id="stop-btn" onclick="confirmStopRecord()" class="btn btn-danger btn-custom mb-3">
+								<img src="../static/icons/stop.png" alt="Stop Icon" class="icon"> Stop Recording
+							</button>`;
+					}
+					statusElement.innerHTML = '<p class="flashing">⚠ Recording in Progress ⚠</p>';
+				} else {
+					if (!currentHTML.includes('Start Recording')) {
+						recordingButton.innerHTML = `
+							<a id="start-btn" href="/start_recording" class="btn btn-success btn-custom mb-3">
+								<img src="../static/icons/record.png" alt="Start Icon" class="icon"> Start Recording
+							</a>`;
+					}
+					statusElement.textContent = '';
+				}
+			})
+			.catch(error => console.error("Error updating recording button:", error));
+	}
+
+	// Periodically update the recording button & status
+	setInterval(updateRecordingButton, 1000);
+
+
+
+</script>
+</head>
+
+<body class="bg-light">
+
+<div class="container my-5">
+    <h1 class="page-title">Audio Recorder</h1>
+    <center><p id="current-date-time" class="text-secondary mb-4"></p></center>
+<!--
+	<div class="container text-center mb-3">
+		<h1 class="text-primary font-weight-bold">Selected Audio Device</h1>
+		<div class="d-flex justify-content-center align-items-center">
+			<!-- Left-aligned card and device information 
+			<div class="text-left mr-3" style="text-align: left;">
+				<p class="font-weight-bold text-primary">Change device</p>
+			</div>
+			<!-- Button to navigate to select_device.html 
+			<a id="view-sysinfo-btn" href="{{ url_for('select_device') }}" class="btn btn-custom mb-3">
+			<img src="../static/icons/sysinfo.png" alt="Sysinfo Icon" class="icon"> Card No: {{ card }},
+			Audio Device: {{ device_name }}
+		</a>
+			</div>-->
+<div class="d-flex flex-column align-items-center">
+    <div id="recording-button">
+        {% if recording_in_progress %}
+            <button id="stop-btn" onclick="confirmStopRecord()" class="btn btn-danger btn-custom mb-3">
+                <img src="../static/icons/stop.png" alt="Stop Icon" class="icon"> Stop Recording
+            </button>
+		{% else %}
+            <a id="start-btn" href="{{ url_for('start_recording') }}" class="btn btn-success btn-custom mb-3" onclick="disableStartButton()">
+                <img src="../static/icons/record.png" alt="Start Icon" class="icon"> Start Recording
+            </a>
+        {% endif %}
+        <p class="recording-duration">
+            <span class="flashing">⚠ Recording in Progress ⚠</span><br>
+            Duration: 
+            <span id="recording-duration">
+                {{ '%02d' % (elapsed_time // 3600) }}:{{ '%02d' % ((elapsed_time % 3600) // 60) }}:{{ '%02d' % (elapsed_time % 60) }}
+            </span>
+        </p>
+
+        <a href="{{ url_for('manage_recordings') }}" class="btn btn-primary btn-custom mb-3">
+            <img src="../static/icons/manage.png" alt="Manage Icon" class="icon"> Manage Recordings
+        </a>
+		<button id="check-audio-btn" class="btn btn-custom mb-3" onclick="checkRecordingAndProceedToAudiomonitor()">
+			<img src="{{ url_for('static', filename='icons/audio.png') }}" alt="Audio Icon" class="icon"> Check Audio
+		</button>
+        <a id="add-metadata-btn" href="{{ url_for('settings') }}" class="btn btn-custom mb-3">
+			<img src="../static/icons/settings.png" alt="Settings Icon" class="icon"> Add or Change Metadata
+		</a>
+        <a id="view-sysinfo-btn" href="{{ url_for('diagnostics') }}" class="btn btn-custom mb-3">
+			<img src="../static/icons/sysinfo.png" alt="Sysinfo Icon" class="icon"> View System Information
+		</a>
+		<a id="mixer-settings-btn" href="{{ url_for('alsamixer') }}" class="btn btn-custom mb-3">
+			<img src="../static/icons/audio.png" alt="Mixer Icon" class="icon"> Audio Mixer Settings
+		</a>
+
+    </div>
+
+    <h2 class="mt-5">Recorded Files</h2>
+    <ul class="list-group mt-3">
+        {% for file in files %}
+            <li class="list-group-item">
+                {{file}}
+			</li>
+        {% endfor %}
+    </ul>
+</div>
+
+	<script src="/static/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
+
+

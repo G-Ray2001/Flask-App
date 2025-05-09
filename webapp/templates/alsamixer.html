@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/bootstrap.min.css') }}">
+	<style>
+        /* Inherit styling */
+        .page-title {
+            text-align: center;
+            color: #007bff;
+            font-weight: bold;
+        }
+        .iframe-container {
+			width: 100%;
+			height: 100vh; /* Set to 100% of the viewport height */
+		}
+
+		iframe {
+			width: 100%;
+			height: 100%;
+			border: none;
+		}
+
+		.nav-button {
+            display: inline-flex;
+            align-items: center;
+            padding: 10px 20px;
+            font-size: 1rem;
+            color: #fff;
+            background-color: #007bff;
+            border: none;
+            border-radius: 5px;
+            text-decoration: none;
+            transition: background-color 0.3s ease;
+        }
+        .nav-buttons {
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+            margin-top: 20px;
+            padding-bottom: 20px;
+        }
+    </style>
+</head>
+<body class="bg-light">
+<div class="container my-5">
+    <h1 class="page-title">ALSA-Mixer Settings</h1>
+	<link rel="stylesheet" href="{{ url_for('static', filename='css/bootstrap.min.css') }}">
+    <!-- Navigation Buttons -->
+    <div class="nav-buttons">
+        <a href="{{ url_for('index') }}" class="btn btn-outline-primary btn-icon">
+            <img src="{{ url_for('static', filename='icons/home.png') }}" alt="Home Icon" class="icon" style="width: 30px; height: 30px;"> Home Page
+        </a>
+    </div>
+
+    <!-- Device Selection Form -->
+	<div class="mt-5">
+    <h3>Select Audio Input Device</h3>
+    <form id="deviceForm">
+        <div class="form-group">
+            <label for="device">Available Devices:</label>
+            <select name="card" id="device" class="form-control">
+                {% for device in devices %}
+                    <option value="{{ device.card }}">Card {{ device.card }}: {{ device.device_name }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <button type="submit" class="btn btn-primary mt-3">Select Device</button>
+    </form>
+    <p id="message" class="text-success mt-3"></p>
+	</div>
+
+
+    <!-- Embed Alsamixer WebUI -->
+    <div class="iframe-container mt-4">
+        <iframe src="http://audio-rec1.local:8080"></iframe>
+    </div>
+
+    <!-- Navigation Buttons -->
+    <div class="nav-buttons">
+        <a href="{{ url_for('index') }}" class="btn btn-outline-primary btn-icon">
+            <img src="{{ url_for('static', filename='icons/home.png') }}" alt="Home Icon" class="icon" style="width: 30px; height: 30px;"> Home Page
+        </a>
+    </div>
+</div>
+<script>
+    document.getElementById('deviceForm').addEventListener('submit', function(event) {
+        event.preventDefault(); // Prevent normal form submission
+
+        const formData = new FormData(this); // Collect form data
+        fetch('/alsamixer', {
+            method: 'POST',
+            body: formData,
+        })
+        .then(response => {
+            if (response.ok) {
+                document.getElementById('message').textContent = "Device selected successfully!";
+            } else {
+                document.getElementById('message').textContent = "Failed to select device.";
+            }
+        })
+        .catch(error => {
+            document.getElementById('message').textContent = "An error occurred. Please try again.";
+            console.error('Error:', error);
+        });
+    });
+</script>
+
+<script src="/static/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

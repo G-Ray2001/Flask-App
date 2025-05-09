@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<!--manage_recordings.html-->
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Manage Recordings</title>
+    <!-- Bootstrap CSS -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/bootstrap.min.css') }}">
+	<!--<link rel="icon" type="image/x-icon" href="{{ url_for('static', filename='favicons/managerecordings.ico') }}">-->
+
+    <style>
+        .recording-item {
+            padding: 15px;
+            border-bottom: 1px solid #dee2e6;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+        .icon {
+            width: 30px;
+            height: 30px;
+            margin-right: 8px;
+        }
+        .file-info {
+            flex: 1;
+            min-width: 100px;
+            margin-bottom: 10px;
+        }
+        .action-group {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+        .btn {
+            font-size: 0.9rem;
+        }+
+        .btn-icon img {
+            width: 1em;
+            height: 1em;
+            margin-right: 5px;
+        }
+        .rename-form {
+            display: none;
+            flex-wrap: nowrap;
+            margin-top: 10px;
+            width: 100%;
+        }
+        .ios-notice {
+            font-size: 0.9em;
+            color: #6c757d;
+        }
+        .nav-button {
+            display: inline-flex;
+            align-items: center;
+            padding: 10px 20px;
+            font-size: 1rem;
+            color: #fff;
+            background-color: #007bff;
+            border: none;
+            border-radius: 5px;
+            text-decoration: none;
+            transition: background-color 0.3s ease;
+        }
+        .nav-buttons {
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+            margin-top: 20px;
+            padding-bottom: 20px;
+        }
+        .page-title {
+            text-align: center;
+            color: #007bff; /* Bootstrap primary blue color */
+            font-weight: bold;
+        }
+        .empty-message {
+            text-align: center;
+            font-size: 1.2rem;
+            color: #6c757d;
+            margin-top: 50px;
+        }
+		.blinking {
+			animation: blinker 1s linear infinite;
+		}
+
+		@keyframes blinker {
+			50% { opacity: 0; }
+		}
+    </style>
+    <script>
+        function toggleRenameForm(id) {
+            const form = document.getElementById(`rename-form-${id}`);
+            form.style.display = form.style.display === 'none' ? 'flex' : 'none';
+        }
+
+        function applyExtension(id) {
+            const newNameInput = document.getElementById(`new-name-${id}`);
+            const originalExtension = document.getElementById(`original-extension-${id}`).value;
+            if (!newNameInput.value.includes('.')) {
+                newNameInput.value += originalExtension;
+            }
+        }
+
+        function cancelRename(id) {
+            const form = document.getElementById(`rename-form-${id}`);
+            form.style.display = 'none';
+            document.getElementById(`new-name-${id}`).value = '';
+        }
+
+        function isIOS() {
+            return /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+        }
+
+        document.addEventListener("DOMContentLoaded", function() {
+            if (isIOS()) {
+                document.getElementById("iosNotice").style.display = "block";
+            }
+        });
+
+		function updateRecordingStatus() {
+			fetch('/is_recording')
+				.then(response => response.json())
+				.then(data => {
+					const statusElement = document.getElementById('recording-status');
+					if (data.recording) {
+						statusElement.textContent = "Recording in progress";
+						statusElement.style.color = "red";
+						statusElement.style.fontWeight = "bold";
+						statusElement.classList.add("blinking"); // Add blinking effect
+					} else {
+						statusElement.textContent = "No active recording";
+						statusElement.style.color = "green";
+						statusElement.style.fontWeight = "bold";
+						statusElement.classList.remove("blinking"); // Remove blinking effect
+					}
+				})
+				.catch(error => console.error('Error checking recording status:', error));
+		}
+
+		setInterval(updateRecordingStatus, 3000); // Update every 3 seconds
+		updateRecordingStatus();
+		
+		function startDownload(url, index) {
+			const progressBar = document.getElementById(`progress-bar-${index}`);
+			const progressContainer = document.getElementById(`progress-container-${index}`);
+			const progressText = document.getElementById(`progress-text-${index}`);
+
+			// Initialize progress bar
+			progressBar.value = 0;
+			progressText.textContent = "0%";
+			progressContainer.style.display = "block";
+
+			const xhr = new XMLHttpRequest();
+			xhr.open("GET", url, true);
+			xhr.responseType = "blob";
+
+			// Update progress
+			xhr.onprogress = function(event) {
+				if (event.lengthComputable) {
+					const percentComplete = Math.round((event.loaded / event.total) * 100);
+					progressBar.value = percentComplete;
+					progressText.textContent = `${percentComplete}%`;
+				}
+			};
+
+			// On successful download
+			xhr.onload = function() {
+				if (xhr.status === 200) {
+					const blob = new Blob([xhr.response]);
+					const link = document.createElement("a");
+					link.href = window.URL.createObjectURL(blob);
+					link.download = url.split('/').pop(); // Extract file name
+					link.click();
+
+					// Replace progress bar with a "Download Complete" message
+					progressContainer.innerHTML = '<span style="color: green; font-weight: bold;">Download Complete!</span>';
+				}
+			};
+
+			// Handle errors
+			xhr.onerror = function() {
+				alert("An error occurred during the download.");
+				progressContainer.style.display = "none";
+			};
+
+			xhr.send();
+		}
+		
+		let currentRecordingFile = ""; // Variable to store the filename
+
+		function updateRecordingButton() {
+			fetch('/is_recording')
+				.then(response => response.json())
+				.then(data => {
+					const recordingButton = document.getElementById('recording-button');
+					const statusElement = document.getElementById('recording-status');
+
+					if (!recordingButton) return;
+
+					currentRecordingFile = data.current_recording; // Capture filename
+
+					if (data.recording) {
+						recordingButton.innerHTML = `
+							<button id="stop-btn" onclick="confirmStopRecord()" class="btn btn-danger btn-custom mb-3">
+								<img src="../static/icons/stop.png" alt="Stop Icon" class="icon"> Stop Recording
+							</button>`;
+						statusElement.innerHTML = `<span class="blinking">Recording: ${currentRecordingFile}</span>`;
+					} else {
+						recordingButton.innerHTML = `
+							<a id="start-btn" href="/start_recording" class="btn btn-success btn-custom mb-3">
+								<img src="../static/icons/record.png" alt="Start Icon" class="icon"> Start Recording
+							</a>`;
+						statusElement.textContent = 'No active recording';
+					}
+				})
+				.catch(error => console.error("Error updating recording button:", error));
+		}
+
+		// Refresh recording info every second
+		setInterval(updateRecordingButton, 1000);
+
+    </script>
+</head>
+<body>
+    <div class="container text-center my-5">
+        <h1 class="page-title">Manage Recordings</h1>
+        <div class="nav-buttons">
+            <a href="{{ url_for('index') }}" class="btn btn-outline-primary btn-icon">
+                <img src="{{ url_for('static', filename='icons/home.png') }}" alt="Home Icon" class="icon" style="width: 30px; height: 30px;"> Home Page
+            </a>
+        </div>
+		<div class="stat">
+		<strong>Recording Status:</strong> <span id="recording-status">Checking...</span>
+        </div>
+		
+		
+
+        {% if empty %}
+            <!-- Message for empty recordings directory -->
+            <p class="empty-message">No recordings available.</p>
+        {% else %}
+			        <!-- iOS Notice -->
+				<p class="ios-notice mt-3" id="iosNotice" style="display: none;">
+					Tip: On iOS, tap and hold the download button, then select "Download Linked File".
+				</p>
+            <!-- Loop through and display recordings -->
+            {% for file in files %}
+			
+        <div class="recording-item">
+			<div class="file-info">
+				<strong>{{ file.name }}</strong><br>
+				{% if file.length %}
+				<small>Length: {{ file.length }}</small><br>
+				{% endif %}
+				{% if file.size %}
+				<small>Size: {{ file.size }} KB</small><br>
+				{% endif %}
+				{% if file.date %}
+				<small>Date: {{ file.date }}</small>
+				{% endif %}
+			</div>
+			<div class="action-group">
+				<!-- Download button triggers the progress bar -->
+				<a href="{{ url_for('download_file', filename=file.name) }}" 
+				class="btn btn-outline-primary btn-icon" 
+				onclick="startDownload('{{ url_for('download_file', filename=file.name) }}', '{{ loop.index }}'); return false;">
+					<img src="{{ url_for('static', filename='icons/download.png') }}" alt="Download Icon" class="icon" style="width: 30px; height: 30px;"> Download
+				</a>
+
+				<!-- Rename button remains unaffected -->
+				<button onclick="toggleRenameForm('{{ loop.index }}')" class="btn btn-outline-secondary btn-icon">
+					<img src="{{ url_for('static', filename='icons/rename.png') }}" alt="Rename Icon" class="icon" style="width: 30px; height: 30px;"> Rename
+				</button>
+				<div id="rename-form-{{ loop.index }}" class="rename-form">
+					<form action="{{ url_for('rename_recording', filename=file.name) }}" method="post" class="d-flex flex-grow-1">
+						<input type="text" id="new-name-{{ loop.index }}" name="new_name" class="form-control me-2" placeholder="New name" required>
+						<button type="submit" class="btn btn-outline-primary btn-icon" onclick="applyExtension('{{ loop.index }}')">
+							<img src="{{ url_for('static', filename='icons/confirm.png') }}" alt="Confirm Icon" class="icon" style="width: 30px; height: 30px;"> Confirm
+						</button>
+						<button type="button" class="btn btn-outline-primary btn-icon" onclick="cancelRename('{{ loop.index }}')">
+							<img src="{{ url_for('static', filename='icons/cancel.png') }}" alt="Cancel Icon" class="icon" style="width: 30px; height: 30px;"> Cancel
+						</button>
+					</form>
+				</div>
+
+				<!-- Delete button remains unaffected -->
+				<form action="{{ url_for('delete_recording', filename=file.name) }}" method="post" style="display:inline;">
+					<button type="submit" class="btn btn-outline-danger btn-icon" onclick="return confirm('Are you sure you want to delete this recording?');">
+						<img src="{{ url_for('static', filename='icons/delete.png') }}" alt="Delete Icon" class="icon" style="width: 30px; height: 30px;"> Delete
+					</button>
+				</form>
+			</div>
+
+			<!-- Progress bar stays below all buttons -->
+			<div id="progress-container-{{ loop.index }}" style="display: none; margin-top: 10px; text-align: center; max-width: 600px;">
+				<progress id="progress-bar-{{ loop.index }}" value="0" max="100" style="width: 100%; max-width: 600px;"></progress>
+				<span id="progress-text-{{ loop.index }}">0%</span>
+			</div>
+
+
+		</div>
+
+
+
+            {% endfor %}
+        {% endif %}
+
+        <!-- Navigation Buttons -->
+        <div class="nav-buttons">
+            <a href="{{ url_for('index') }}" class="btn btn-outline-primary btn-icon">
+                <img src="{{ url_for('static', filename='icons/home.png') }}" alt="Home Icon" class="icon" style="width: 30px; height: 30px;"> Home Page
+            </a>
+
+		{% if files|length > 3 %}
+			<form action="{{ url_for('delete_all_recordings') }}" method="post" onsubmit="return confirm('Are you sure you want to delete ALL recordings? This cannot be undone.');">
+				<button type="submit" class="btn btn-outline-danger btn-icon">
+                <img src="{{ url_for('static', filename='icons/delete.png') }}" alt="Delete Icon" class="icon" style="width: 30px; height: 30px;">
+                DELETE ALL
+            </button>
+        </form>
+    </div>
+{% endif %}
+        <!-- iOS Notice -->
+
+    </div>
+
+    <!-- Bootstrap JS and dependencies -->
+    <script src="/static/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

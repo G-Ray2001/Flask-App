@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Real-Time VU Meter</title>
+    <style>
+        .meter {
+            width: 100%;
+            height: 30px;
+            background-color: #ddd;
+            position: relative;
+        }
+
+        .level {
+            height: 100%;
+            background-color: #00FF00; /* Green */
+            transition: width 0.1s ease-in-out;
+        }
+
+        .level.peak {
+            background-color: #FF0000; /* Red for peak */
+        }
+    </style>
+</head>
+<body>
+    <h1>Real-Time VU Meter</h1>
+    <div class="meter">
+        <div id="rms-level" class="level"></div>
+    </div>
+    <div class="meter">
+        <div id="peak-level" class="level peak"></div>
+    </div>
+
+    <script>
+        function fetchVUData() {
+            fetch('/get_audio_levels')
+                .then(response => response.json())
+                .then(data => {
+                    let rms = parseFloat(data.rms);
+                    let peak = parseFloat(data.peak);
+
+                    // Update the VU meter levels
+                    document.getElementById("rms-level").style.width = Math.max(0, Math.min(100, -rms)) + "%";
+                    document.getElementById("peak-level").style.width = Math.max(0, Math.min(100, -peak)) + "%";
+                });
+        }
+
+        // Fetch VU data every second
+        setInterval(fetchVUData, 1000);
+    </script>
+</body>
+</html>
