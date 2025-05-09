@@ -1,0 +1,4 @@
+2025-04-25 22:37:04,661 INFO: Flask app starting and logging to /home/pi/webapp/logs/webui.log
+'FLASK_ENV' is deprecated and will not be used in Flask 2.3. Use 'FLASK_DEBUG' instead.
+2025-04-25 22:37:04,891 WARNING:  * Debugger is active!
+2025-04-25 22:37:04,893 INFO:  * Debugger PIN: 143-779-068

@@ -1,0 +1,36 @@
+Thu 20 Mar 22:12:31 CDT 2025 - Line, Mic, and Master settings:
+Simple mixer control 'Line',0
+  Capabilities: cswitch
+  Capture channels: Front Left - Front Right
+  Front Left: Capture [on]
+  Front Right: Capture [on]
+Simple mixer control 'Mic',0
+  Capabilities: cswitch cswitch-joined
+  Capture channels: Mono
+  Mono: Capture [off]
+Simple mixer control 'Master',0
+  Capabilities: pvolume
+  Playback channels: Front Left - Front Right
+  Limits: Playback 0 - 127
+  Mono:
+  Front Left: Playback 121 [95%] [0.00dB]
+  Front Right: Playback 121 [95%] [0.00dB]
+---------------------------------
+Thu 20 Mar 22:12:41 CDT 2025 - Line, Mic, and Master settings:
+Simple mixer control 'Line',0
+  Capabilities: cswitch
+  Capture channels: Front Left - Front Right
+  Front Left: Capture [on]
+  Front Right: Capture [on]
+Simple mixer control 'Mic',0
+  Capabilities: cswitch cswitch-joined
+  Capture channels: Mono
+  Mono: Capture [off]
+Simple mixer control 'Master',0
+  Capabilities: pvolume
+  Playback channels: Front Left - Front Right
+  Limits: Playback 0 - 127
+  Mono:
+  Front Left: Playback 121 [95%] [0.00dB]
+  Front Right: Playback 121 [95%] [0.00dB]
+---------------------------------
