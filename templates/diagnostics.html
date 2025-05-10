@@ -78,7 +78,7 @@
 		updateRecordingStatus2();
         
 		function checkRecordingAndProceed(action) {
-			fetch('/is_recording')
+			fetch('/is_recording2')
 				.then(response => response.json())
 				.then(data => {
 					if (data.recording) {
