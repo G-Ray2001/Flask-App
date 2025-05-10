@@ -1,20 +1,17 @@
-#app.py
+# app.py
+from mutagen.mp3 import MP3
+import logging
+from datetime import datetime
+import time
+import json
+import re
+import threading
+from gi.repository import Gst, GLib
 from flask import Flask, Response, render_template, send_from_directory, redirect, url_for, jsonify, request
 import os
 import subprocess
 import gi
 gi.require_version('Gst', '1.0')
-from gi.repository import Gst, GLib
-import threading
-import re
-import json
-import time
-from datetime import datetime
-import logging
-import psutil
-from mutagen.mp3 import MP3
-import sys
-
 
 app = Flask(__name__)
 app.debug = True  # Enable debug mode
@@ -35,6 +32,8 @@ app.logger.info("Logging setup complete!")
 RECORDING_STATUS_PATH = "/home/pi/webapp/recording_status.json"
 
 # ✅ Ensure recording status is reset at Flask startup
+
+
 def initialize_recording_status():
     try:
         # ✅ Always reset recording status to False on startup
@@ -49,9 +48,9 @@ def initialize_recording_status():
     except Exception as e:
         print(f"❌ Error initializing recording status: {e}")
 
+
 # ✅ Call this function at Flask startup
 initialize_recording_status()
-
 
 
 # Ensure the logs directory exists
@@ -70,6 +69,7 @@ os.makedirs(RECORDINGS_DIR, exist_ok=True)
 ffmpeg_process = None
 start_time = None  # Initialize start_time globally
 
+
 def get_selected_device():
     try:
         with open('/home/pi/webapp/selected_device.json', 'r') as f:
@@ -79,20 +79,21 @@ def get_selected_device():
     except json.JSONDecodeError:
         raise RuntimeError("Selected device file is corrupted.")
 
-
- # Initialize GStreamer
+# Initialize GStreamer
 Gst.init(None)
 
 # Retrieve the selected audio device
 selected_device = get_selected_device()
 if not selected_device:
-    raise RuntimeError("No audio device selected. Please select a device before initializing the pipeline.")
+    raise RuntimeError(
+        "No audio device selected. Please select a device before initializing the pipeline.")
 
 # Dynamically set the ALSA source device
 alsa_device = f"plughw:{selected_device['card']},{selected_device['device']}"
 
 # Create GStreamer pipeline with the selected device
-pipeline = Gst.parse_launch(f"alsasrc device={alsa_device} ! level interval=100000000 ! fakesink")
+pipeline = Gst.parse_launch(
+    f"alsasrc device={alsa_device} ! level interval=100000000 ! fakesink")
 bus = pipeline.get_bus()
 bus.add_signal_watch()
 
@@ -107,12 +108,14 @@ loop = None
 # Scan audio input devices
 def scan_audio_input_devices():
     try:
-        result = subprocess.run(['arecord', '-l'], capture_output=True, text=True)
+        result = subprocess.run(
+            ['arecord', '-l'], capture_output=True, text=True)
         output = result.stdout
-        
+
         devices = []
         for line in output.splitlines():
-            match = re.search(r'card (\d+): ([^,]+), device (\d+): ([^\[]+)', line)
+            match = re.search(
+                r'card (\d+): ([^,]+), device (\d+): ([^\[]+)', line)
             if match:
                 devices.append({
                     "card": match.group(1),
@@ -124,15 +127,16 @@ def scan_audio_input_devices():
     except Exception as e:
         print(f"Error scanning audio devices: {e}")
         return []
-        
+
+
 # Scan at startup and save devices
 audio_devices = scan_audio_input_devices()
 with open('/home/pi/webapp/audio_devices.json', 'w') as f:
     json.dump(audio_devices, f, indent=4)
 
-   
     # Run the shell script to adjust mixer settings on startup
 # subprocess.run(['./mixersettings.sh'], check=True)
+
 
 def is_pipeline_running():
     global pipeline
@@ -141,7 +145,8 @@ def is_pipeline_running():
         state = pipeline.get_state(0).state
         return state == Gst.State.PLAYING
     return False
-            
+
+
 def on_message(bus, message):
     global audio_levels
     if message.type == Gst.MessageType.ELEMENT:
@@ -151,13 +156,15 @@ def on_message(bus, message):
             peak = structure.get_value("peak")
             print("Raw LEVEL message:", rms, peak)
 
-            if isinstance(rms, (list, tuple)) and isinstance(peak, (list, tuple)):
+            if isinstance(rms, (list, tuple)) and isinstance(
+                    peak, (list, tuple)):
                 # Average across channels
                 avg_rms = sum(rms) / len(rms)
                 avg_peak = sum(peak) / len(peak)
 
                 # Normalize values: map -60 dB to 0 and 0 dB to 1
-                normalized_rms = max((avg_rms + 60) / 60, 0)  # Ensure values stay within 0 to 1
+                # Ensure values stay within 0 to 1
+                normalized_rms = max((avg_rms + 60) / 60, 0)
                 normalized_peak = max((avg_peak + 60) / 60, 0)
 
                 # Update the global audio levels
@@ -171,13 +178,15 @@ def on_message(bus, message):
                 audio_levels["rms"] = 0
                 audio_levels["peak"] = 0
                 print("Audio levels set to zero due to invalid data.")
-                
+
+
 @app.route('/select_device', methods=['GET', 'POST'])
 def select_device():
     try:
         devices = get_audio_devices()
 
-        # If devices is unexpectedly a Response object, convert it to a Python list
+        # If devices is unexpectedly a Response object, convert it to a Python
+        # list
         if isinstance(devices, Response):
             devices = devices.get_json()
 
@@ -193,7 +202,8 @@ def select_device():
 
         if request.method == 'POST':
             selected_card = request.form.get('card')
-            selected_device = next((d for d in devices if d['card'] == selected_card), None)
+            selected_device = next(
+                (d for d in devices if d['card'] == selected_card), None)
             if selected_device:
                 with open('selected_device.json', 'w') as f:
                     json.dump(selected_device, f, indent=4)
@@ -207,7 +217,7 @@ def select_device():
         print(f"Error in /select_device route: {e}")
         return f"An error occurred: {e}", 500
 
-               
+
 @app.route('/set_mixer_setting', methods=['POST'])
 def set_mixer_setting():
     control = request.form.get("control")
@@ -216,7 +226,8 @@ def set_mixer_setting():
 
     try:
         # Apply the setting using the amixer command
-        subprocess.run(["amixer", "-c", card, "sset", control, value], check=True)
+        subprocess.run(["amixer", "-c", card, "sset",
+                       control, value], check=True)
         return redirect(url_for('setup'))
     except Exception as e:
         return f"Error applying mixer setting: {e}", 500
@@ -227,19 +238,23 @@ def start_pipeline():
 
     # Retrieve the selected audio device
     selected_device = get_selected_device()
-    print(f"Selected device for pipeline: {selected_device}")  # Debugging selected device
+    # Debugging selected device
+    print(f"Selected device for pipeline: {selected_device}")
     if not selected_device:
-        raise RuntimeError("No audio device selected. Please select a device before starting the pipeline.")
+        raise RuntimeError(
+            "No audio device selected. Please select a device before starting the pipeline.")
 
     # Initialize GStreamer
     Gst.init(None)
 
     # Dynamically set the ALSA source device
     alsa_device = f"plughw:{selected_device['card']},{selected_device['device']}"
-    print(f"Starting pipeline with ALSA device: {alsa_device}")  # Debugging ALSA device
+    # Debugging ALSA device
+    print(f"Starting pipeline with ALSA device: {alsa_device}")
 
     # Create GStreamer pipeline with the selected device
-    pipeline = Gst.parse_launch(f"alsasrc device={alsa_device} ! audioresample ! audio/x-raw,rate=22050 ! level interval=100000000 ! fakesink")
+    pipeline = Gst.parse_launch(
+        f"alsasrc device={alsa_device} ! audioresample ! audio/x-raw,rate=22050 ! level interval=100000000 ! fakesink")
 
     bus = pipeline.get_bus()
     bus.add_signal_watch()
@@ -260,7 +275,6 @@ def start_pipeline():
     threading.Thread(target=run, daemon=True).start()
 
 
-
 def stop_pipeline():
     global pipeline, loop
     if pipeline:
@@ -269,7 +283,7 @@ def stop_pipeline():
         loop.quit()
     pipeline = None
     loop = None
-    print("GStreamer pipeline stopped.")    
+    print("GStreamer pipeline stopped.")
 
 
 # Function to load metadata from JSON
@@ -281,6 +295,8 @@ def load_metadata():
     return {}
 
 # Function to add metadata to MP3 file
+
+
 def write_metadata(filepath):
     metadata = load_metadata()
     temp_filepath = f"{filepath}.temp.mp3"
@@ -302,15 +318,19 @@ def write_metadata(filepath):
 
     try:
         print(f"Running FFmpeg command: {' '.join(command)}")
-        result = subprocess.run(command, capture_output=True, text=True, check=True)
+        result = subprocess.run(
+            command,
+            capture_output=True,
+            text=True,
+            check=True)
         print(f"FFmpeg completed successfully: {result.stdout}")
-        os.replace(temp_filepath, filepath)  # Replace the original file with the updated file
+        # Replace the original file with the updated file
+        os.replace(temp_filepath, filepath)
         print(f"Metadata successfully written to {filepath}")
     except subprocess.CalledProcessError as e:
         print(f"Error running FFmpeg: {e.stderr}")
     except Exception as ex:
         print(f"Error replacing the file: {ex}")
-
 
 
 def format_duration(seconds):
@@ -323,11 +343,13 @@ def format_duration(seconds):
     else:
         return f"{int(seconds)}s"
 
+
 @app.route('/current_time')
 def current_time():
     now = datetime.now()
     formatted_time = now.strftime("%A, %B %d, %Y %I:%M:%S %p")
     return jsonify({'current_time': formatted_time})
+
 
 def generate_filename():
     base_filename = datetime.now().strftime("Rec._%m_%d_%y")
@@ -339,54 +361,70 @@ def generate_filename():
     return filename
 
 # Function to get memory info with only total, used, and free memory
+
+
 def get_memory_info():
     # Run the `free -h` command
-    memory_info = subprocess.run(['free', '-h'], stdout=subprocess.PIPE, text=True).stdout
-    
+    memory_info = subprocess.run(
+        ['free', '-h'], stdout=subprocess.PIPE, text=True).stdout
+
     # Split lines and columns to access only relevant parts
     lines = memory_info.splitlines()
-    
+
     # Find the memory line (e.g., the second line in output)
     mem_line = lines[1].split()
-    
+
     # Extract total, used, and free memory values
     memory_data = {
         "Total": mem_line[1],
         "Used": mem_line[2],
         "Free": mem_line[3]
     }
-    
+
     return memory_data
-def verify_audio_settings():  
+
+
+def verify_audio_settings():
     """Check if 'Line' capture is enabled, and apply settings if needed."""
-    check = subprocess.run(["amixer", "-c", "2", "get", "Line"], capture_output=True, text=True)
-    
+    check = subprocess.run(
+        ["amixer", "-c", "2", "get", "Line"], capture_output=True, text=True)
+
     if "Capture [on]" not in check.stdout:
         print("Line capture is OFF. Applying settings...")
-        subprocess.run(["amixer", "-c", "2", "sset", "Line", "cap"], check=True)
-        subprocess.run(["amixer", "-c", "2", "sset", "Mic", "nocap"], check=False)
-        subprocess.run(["amixer", "-c", "2", "sset", "Master", "0.0dB", "0.0dB"], check=True)
+        subprocess.run(["amixer", "-c", "2", "sset",
+                       "Line", "cap"], check=True)
+        subprocess.run(["amixer", "-c", "2", "sset",
+                       "Mic", "nocap"], check=False)
+        subprocess.run(["amixer", "-c", "2", "sset", "Master",
+                       "0.0dB", "0.0dB"], check=True)
     else:
         print("Line capture is ON. No changes needed.")
 
-def is_recording(): # routine to check and see if a recording is in progress
-    result = subprocess.run(["pgrep", "-f", "gst-launch-1.0"], capture_output=True, text=True)
-    return result.stdout.strip() != ""  # Returns True if recording is in progress, False otherwise
-    print("is_recording() result:", result.stdout.strip() != "")
+
+#def is_recording():  # routine to check and see if a recording is in progress
+#    result = subprocess.run(
+#        ["pgrep", "-f", "gst-launch-1.0"], capture_output=True, text=True)
+    # Returns True if recording is in progress, False otherwise
+#    return result.stdout.strip() != ""
+#    print("is_recording() result:", result.stdout.strip() != "")
+
 
 def is_recording2():
     try:
         with open(RECORDING_STATUS_PATH, 'r') as f:
             status = json.load(f)
-        return status.get("recording", False)  # Default to False if key is missing
+        # Default to False if key is missing
+        return status.get("recording", False)
     except FileNotFoundError:
         return False  # Default to False if file doesn't exist
+
 
 @app.route('/audio_devices')
 def get_audio_devices():
     app.logger.info("check for audio devices")
-    return jsonify(audio_devices) 
-    
+    return jsonify(audio_devices)
+
+
 @app.route('/')
 def index():
     stop_pipeline()
@@ -397,35 +435,37 @@ def index():
     ]
     # Sort files by modification time (newest first)
     files = sorted(
-        files, 
-        key=lambda f: os.path.getmtime(os.path.join(RECORDINGS_DIR, f)), 
+        files,
+        key=lambda f: os.path.getmtime(os.path.join(RECORDINGS_DIR, f)),
         reverse=True
     )
 
     # Check if recording is in progress and calculate elapsed time if so
-    recording_in_progress = is_recording2()   
-    #recording_in_progress = ffmpeg_process is not None
+    recording_in_progress = is_recording2()
+    # recording_in_progress = ffmpeg_process is not None
     elapsed_time = 0
     if recording_in_progress and start_time:
         elapsed_time = int((datetime.now() - start_time).total_seconds())
-    
+
     # Load selected device info
     with open('/home/pi/webapp/selected_device.json', 'r') as f:
         selected_device = json.load(f)
-    
+
     # Extract details
     card = selected_device['card']
     device_name = selected_device['device_name'][:15]  # First 15 characters
-    print(f"Rendering template with recording_in_progress={recording_in_progress}")
+    print(
+        f"Rendering template with recording_in_progress={recording_in_progress}")
 
     # Pass details to the template
-    return render_template('index.html', 
-                           files=files, 
-                           recording_in_progress=recording_in_progress, 
-                           elapsed_time=elapsed_time, 
-                           card=card, 
+    return render_template('index.html',
+                           files=files,
+                           recording_in_progress=recording_in_progress,
+                           elapsed_time=elapsed_time,
+                           card=card,
                            device_name=device_name)
-  
+
+
 @app.route("/restart_pipeline", methods=["POST"])
 def restart_pipeline():
     global pipeline
@@ -439,14 +479,16 @@ def restart_pipeline():
         print(f"Error restarting pipeline: {e}")
         return f"Failed to restart pipeline: {e}", 500
 
-@app.route('/check_session')
-def check_session():
-    return f"Current Recording: {session.get('current_recording')}"
 
-@app.route('/reset_session')
-def reset_session():
-    session.pop("current_recording", None)
-    return "Session reset!"
+#@app.route('/check_session')
+#def check_session():
+#    return f"Current Recording: {session.get('current_recording')}"
+
+
+#@app.route('/reset_session')
+#def reset_session():
+#    session.pop("current_recording", None)
+#    return "Session reset!"
 
 
 @app.route('/start_recording')
@@ -456,7 +498,7 @@ def start_recording():
     global ffmpeg_process, start_time
     if ffmpeg_process is not None:
         return redirect(url_for('index'))
-    
+
     print("ffmpeg_process:", ffmpeg_process)
     print("start_time:", start_time)
 
@@ -467,7 +509,8 @@ def start_recording():
 
     selected_device = get_selected_device()
     if not selected_device:
-        raise RuntimeError("No audio device selected. Please select a device before starting the pipeline.")
+        raise RuntimeError(
+            "No audio device selected. Please select a device before starting the pipeline.")
 
     # ✅ Save recording status to JSON file
     recording_status = {
@@ -497,16 +540,16 @@ def start_recording():
     return redirect(url_for('index'))
 
 
+#@app.route('/is_recording')  # Invokes the recording test
+#def check_recording_status():
+#    return jsonify({'recording': is_recording()})
 
-@app.route('/is_recording') # Invokes the recording test
-def check_recording_status():
-    return jsonify({'recording': is_recording()})
-    
-@app.route('/is_recording2') # Invokes the recording test
+
+@app.route('/is_recording2')  # Invokes the recording test
 def check_recording_status2():
     return jsonify({'recording': is_recording2()})
 
-    
+
 @app.route('/stop_recording', methods=['POST'])
 def stop_recording():
     app.logger.info("Stopping Recording process")
@@ -564,13 +607,15 @@ def manage_recordings():
 
     # ✅ Exclude only if recording is still active
     if recording_file and status.get("recording"):
-        mp3_files = [f for f in mp3_files if os.path.basename(f) != recording_file]
+        mp3_files = [
+            f for f in mp3_files if os.path.basename(f) != recording_file]
 
     app.logger.info(f"MP3 Files After Filtering: {mp3_files}")
 
     # Check if the directory is empty
     if not mp3_files:
-        return render_template('manage_recordings.html', files=[], empty=True, current_recording=None)
+        return render_template('manage_recordings.html',
+                               files=[], empty=True, current_recording=None)
 
     # Populate files with metadata
     files = []
@@ -596,11 +641,8 @@ def manage_recordings():
 
     app.logger.info(f"Final Files Sent to Template: {files}")
 
-    return render_template('manage_recordings.html', files=files, empty=False, current_recording=recording_file)
-
-
-
-
+    return render_template('manage_recordings.html', files=files,
+                           empty=False, current_recording=recording_file)
 
 
 @app.route('/recordings/<filename>')
@@ -612,7 +654,8 @@ def format_time(seconds):
     minutes = int(seconds) // 60
     seconds = int(seconds) % 60
     return f"{minutes}:{seconds:02}"
-   
+
+
 @app.route('/rename/<filename>', methods=['POST'])
 def rename_recording(filename):
     old_file_path = os.path.join(RECORDINGS_DIR, filename)
@@ -639,6 +682,7 @@ def delete_recording(filename):
         print(f"Error deleting file {filename}: {e}")
         return redirect(url_for('manage_recordings'))
 
+
 @app.route('/delete_all_recordings', methods=['POST'])
 def delete_all_recordings():
     app.logger.info("Deleting all recordings")
@@ -659,8 +703,9 @@ def delete_all_recordings():
 
             # ✅ Skip deleting the current recording file
             if recording_file and filename == recording_file:
-                app.logger.info(f"Skipping deletion of active recording: {filename}")
-                continue  
+                app.logger.info(
+                    f"Skipping deletion of active recording: {filename}")
+                continue
 
             if os.path.isfile(file_path):
                 os.remove(file_path)
@@ -670,7 +715,6 @@ def delete_all_recordings():
     except Exception as e:
         app.logger.error(f"Error deleting recordings: {e}")
         return redirect(url_for('manage_recordings'))
-       
 
 
 @app.route('/update_duration')
@@ -713,22 +757,22 @@ def audiomonitor():
     # ✅ Handle card selection
     if request.method == "POST":
         selected_card = request.form.get("card")
-        selected_device = next((d for d in devices if d["card"] == selected_card), None)
+        selected_device = next(
+            (d for d in devices if d["card"] == selected_card), None)
         if selected_device:
             with open("/home/pi/webapp/selected_device.json", "w") as f:
                 json.dump(selected_device, f, indent=4)
-            return redirect(url_for("audiomonitor"))  # Reload page with new selection
+            # Reload page with new selection
+            return redirect(url_for("audiomonitor"))
         else:
             return "Invalid selection.", 400
 
-    return render_template("audiomonitor.html", devices=devices)  # ✅ Ensures devices is iterable
-
-    
-
+    # ✅ Ensures devices is iterable
+    return render_template("audiomonitor.html", devices=devices)
 
 
-#@app.route("/stop_monitor")
-#def stop_monitor():
+# @app.route("/stop_monitor")
+# def stop_monitor():
     # Stop the pipeline when leaving the monitor page
 #    stop_pipeline()
 #    return "Pipeline stopped!"
@@ -738,6 +782,8 @@ def get_levels():
     return jsonify(audio_levels)
 
 # Function to get CPU stats from /proc/stat
+
+
 def get_cpu_usage():
     with open('/proc/stat', 'r') as f:
         lines = f.readlines()
@@ -757,6 +803,8 @@ def get_cpu_usage():
     return total_idle, total
 
 # Function to calculate CPU usage percentage
+
+
 def calculate_cpu_percentage():
     idle_1, total_1 = get_cpu_usage()
     time.sleep(1)  # Wait a second
@@ -771,23 +819,31 @@ def calculate_cpu_percentage():
     return cpu_percentage
 
 # Flask route for diagnostics page
+
+
 @app.route('/diagnostics')
 def diagnostics():
     app.logger.info("accessing Diagnostics")
-    uptime = subprocess.run(['uptime', '-p'], stdout=subprocess.PIPE, text=True).stdout.strip()
-    temp = subprocess.run(['vcgencmd', 'measure_temp'], stdout=subprocess.PIPE, text=True).stdout.strip()
+    uptime = subprocess.run(
+        ['uptime', '-p'], stdout=subprocess.PIPE, text=True).stdout.strip()
+    temp = subprocess.run(['vcgencmd', 'measure_temp'],
+                          stdout=subprocess.PIPE, text=True).stdout.strip()
     cpu_percent = calculate_cpu_percentage()  # Use the new CPU usage method
     memory_data = get_memory_info()
-    disk_usage = subprocess.run(['df', '-h', '/'], stdout=subprocess.PIPE, text=True).stdout
+    disk_usage = subprocess.run(
+        ['df', '-h', '/'], stdout=subprocess.PIPE, text=True).stdout
 
-    return render_template('diagnostics.html', 
-                            uptime=uptime, 
-                            temp=temp, 
-                            cpu_percent=f"{cpu_percent:.2f}",  # Format to 2 decimal places
-                            memory_data=memory_data, 
-                            disk_usage=disk_usage)
+    return render_template('diagnostics.html',
+                           uptime=uptime,
+                           temp=temp,
+                           # Format to 2 decimal places
+                           cpu_percent=f"{cpu_percent:.2f}",
+                           memory_data=memory_data,
+                           disk_usage=disk_usage)
 
 # Route to set system date and time
+
+
 @app.route('/set_datetime', methods=['POST'])
 def set_datetime():
     app.logger.info("Setting date/time")
@@ -800,10 +856,12 @@ def set_datetime():
         subprocess.run(['sudo', 'hwclock', '-w'], check=True)  # Sync to RTC
     except subprocess.CalledProcessError as e:
         print("Error setting date and time:", e)
-    
+
     return redirect(url_for('diagnostics'))
-    
+
 # Power off the Raspberry Pi
+
+
 @app.route('/power_off', methods=['POST'])
 def power_off():
     app.logger.info("Raspberry Pi powering off")
@@ -811,6 +869,8 @@ def power_off():
     return redirect(url_for('index'))
 
 # Restart the Flask app service using a shell script
+
+
 @app.route('/restart_app', methods=['POST'])
 def restart_app():
     app.logger.info("App restarting")
@@ -818,13 +878,17 @@ def restart_app():
     subprocess.Popen('bash /home/pi/webapp/restart_flask.sh', shell=True)
     return redirect(url_for('index'))
 
+
 @app.route('/reboot_system', methods=['POST'])
 def reboot_system():
     app.logger.info("system rebooting")
     os.system('sudo reboot')
-    return redirect(url_for('diagnostics'))  # Redirect to the diagnostics page after initiating reboot
-    
+    # Redirect to the diagnostics page after initiating reboot
+    return redirect(url_for('diagnostics'))
+
 # Route to render the settings page
+
+
 @app.route('/settings')
 def settings():
     # Check if metadata.json exists and read it
@@ -842,24 +906,26 @@ def settings():
             'year': '',
             'comments': ''
         }
-    
+
     return render_template('settings.html', metadata=metadata)
 
-@app.route('/setup')
-def setup():
-    try:
-        # Dynamically determine the card to use (replace with actual logic as needed)
-        audio_injector_card = "2"  # Replace with the dynamically selected card
+
+#@app.route('/setup')
+#def setup():
+#    try:
+        # Dynamically determine the card to use (replace with actual logic as
+        # needed)
+#        audio_injector_card = "2"  # Replace with the dynamically selected card
 
         # Get mixer settings for the card
-        mixer_settings = get_mixer_settings(audio_injector_card)
-        if mixer_settings is None:
-            mixer_settings = "Error retrieving mixer settings."
+#        mixer_settings = get_mixer_settings(audio_injector_card)
+#        if mixer_settings is None:
+#            mixer_settings = "Error retrieving mixer settings."
 
-        return render_template('setup.html', mixer_settings=mixer_settings, card=audio_injector_card)
-    except Exception as e:
-        return f"Error rendering setup page: {e}", 500
-
+#        return render_template(
+#            'setup.html', mixer_settings=mixer_settings, card=audio_injector_card)
+#    except Exception as e:
+#        return f"Error rendering setup page: {e}", 500
 
 
 @app.route('/save_metadata', methods=['POST'])
@@ -881,9 +947,11 @@ def save_metadata():
     # Handle album art upload
     album_art = request.files.get('album_art')
     if album_art:
-        album_art.save('/home/pi/webapp/albumart.jpg')  # Save the uploaded image
+        # Save the uploaded image
+        album_art.save('/home/pi/webapp/albumart.jpg')
 
     return redirect(url_for('settings'))
-    
+
+
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0', port=5000)
